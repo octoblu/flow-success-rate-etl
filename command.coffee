@@ -1,25 +1,43 @@
-url = require 'url'
-ElasticSearch = require 'elasticsearch'
-async = require 'async'
 _ = require 'lodash'
+url = require 'url'
+async = require 'async'
+moment = require 'moment'
 request = require 'request'
+ElasticSearch = require 'elasticsearch'
+
 QUERY = require './query.json'
 
 class Command
   constructor: ->
     sourceElasticsearchUrl       = process.env.SOURCE_ELASTICSEARCH_URL ? 'localhost:9200'
     @destinationElasticsearchUrl = process.env.DESTINATION_ELASTICSEARCH_URL ? 'localhost:9200'
+    @captureRangeInMinutes = process.env.CAPTURE_RANGE_IN_MINUTES
 
     @sourceElasticsearch      = new ElasticSearch.Client host: sourceElasticsearchUrl
 
   run: =>
-    @search QUERY, (error, result) =>
+    @search @query(), (error, result) =>
       throw error if error?
+      console.log result
 
       deployments = @process @normalize result
       async.each deployments, @update, (error) =>
         throw error if error?
         process.exit 0
+
+  query: =>
+    return QUERY unless @captureRangeInMinutes?
+
+    captureSince = moment().subtract parseInt(@captureRangeInMinutes), 'minutes'
+
+    query = _.cloneDeep QUERY
+    query.aggs.flowStart.filter.and.push({
+      range:
+        _timestamp:
+          gte: captureSince
+    })
+
+    return query
 
   update: (deployment, callback) =>
     uri = url.format
