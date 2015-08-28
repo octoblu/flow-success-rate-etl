@@ -30,11 +30,7 @@ class Command
     captureSince = moment().subtract parseInt(@captureRangeInMinutes), 'minutes'
 
     query = _.cloneDeep QUERY
-    query.aggs.flowStart.filter.and.push({
-      range:
-        _timestamp:
-          gte: captureSince
-    })
+    query.aggs.filter_by_timestamp.filter.range._timestamp.gte = captureSince
 
     return query
 
@@ -42,50 +38,65 @@ class Command
     uri = url.format
       protocol: 'http'
       host: @destinationElasticsearchUrl
-      pathname: "/flow_deploy_history/event/#{deployment.deploymentUuid}"
+      pathname: "/flow_success_rates/event/"
 
-    request.put uri, json: deployment, (error, response, body) =>
+    request.post uri, json: deployment, (error, response, body) =>
       return callback error if error?
       return callback new Error(JSON.stringify body) if response.statusCode >= 300
       callback null
 
   search: (body, callback=->) =>
     @sourceElasticsearch.search({
-      index: 'device_status_flow'
+      index: 'flow_deploy_history'
       type:  'event'
       search_type: 'count'
       body:  body
     }, callback)
 
   normalize: (result) =>
-    buckets = result.aggregations.flowStart.group_by_deploymentUuid.buckets
-    _.map buckets, (bucket) =>
+    buckets = result.aggregations.filter_by_timestamp.group_by_workflow.buckets
+
+    flowStart = _.findWhere buckets, key: 'flow-start'
+    flowStop = _.findWhere buckets, key: 'flow-stop'
+
+    [
+      @normalizeBucket 'flow-start', flowStart
+      @normalizeBucket 'flow-stop', flowStop
+    ]
+
+  normalizeBucket: (workflow, bucket) =>
+    successes = _.find bucket?.group_by_success?.buckets, key: 'T'
+    failures  = _.find bucket?.group_by_success?.buckets, key: 'F'
+
+    {
+      workflow:  workflow
+      successes: successes?.doc_count ? 0
+      failures:  failures?.doc_count ? 0
+    }
+
+  process: (workflows) =>
+    _.map workflows, (workflowObj) =>
+      {workflow,successes,failures} = workflowObj
+
+      total = successes + failures
+
+      if total > 0
+        successRate = (1.0 * successes) / total
+        failureRate = (1.0 * failures) / total
+      else
+        successRate = 1
+        failureRate = 0
+
       {
-        deploymentUuid: bucket.key
-        beginTime: bucket.beginRecord.beginTime.value
-        endTime:   bucket.endRecord.endTime.value
-        workflow: 'flow-start'
-      }
-
-  process: (deployments) =>
-    _.map deployments, (deployment) =>
-      {workflow, deploymentUuid, beginTime, endTime} = deployment
-
-      formattedBeginTime = null
-      formattedBeginTime = moment(beginTime).toISOString() if beginTime?
-      formattedEndTime = null
-      formattedEndTime = moment(endTime).toISOString() if endTime?
-
-      elapsedTime = null
-      elapsedTime = endTime - beginTime if beginTime? && endTime?
-
-      {
-        deploymentUuid: deploymentUuid
         workflow: workflow
-        beginTime: formattedBeginTime
-        endTime: formattedEndTime
-        elapsedTime: elapsedTime
-        success: endTime?
+        successes: successes
+        successRate: successRate
+        successPercentage: 100 * successRate
+        failures: failures
+        failureRate: failureRate
+        failurePercentage: 100 * failureRate
+        total: total
+        captureRangeInMinutes: parseInt(@captureRangeInMinutes)
       }
 
 command = new Command()
