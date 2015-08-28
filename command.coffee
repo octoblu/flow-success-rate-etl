@@ -77,7 +77,7 @@ class Command
       formattedEndTime = moment(endTime).toISOString() if endTime?
 
       elapsedTime = null
-      elapsedTime = endTime - beginTime if endTime?
+      elapsedTime = endTime - beginTime if beginTime? && endTime?
 
       {
         deploymentUuid: deploymentUuid
