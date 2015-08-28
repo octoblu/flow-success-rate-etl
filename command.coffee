@@ -43,7 +43,7 @@ class Command
     uri = url.format
       protocol: 'http'
       host: @destinationElasticsearchUrl
-      pathname: "/flow_start_history/event/#{deployment.deploymentUuid}"
+      pathname: "/flow_deploy_history/event/#{deployment.deploymentUuid}"
 
     request.put uri, json: deployment, (error, response, body) =>
       return callback error if error?
@@ -70,12 +70,21 @@ class Command
 
   process: (deployments) =>
     _.map deployments, (deployment) =>
-      {beginTime, endTime} = deployment
+      {workflow, deploymentUuid, beginTime, endTime} = deployment
+
+      formattedBeginTime = null
+      formattedBeginTime = moment(beginTime).toISOString() if beginTime?
+      formattedEndTime = null
+      formattedEndTime = moment(endTime).toISOString() if endTime?
 
       elapsedTime = null
       elapsedTime = endTime - beginTime if endTime?
 
-      _.extend {}, deployment, {
+      {
+        deploymentUuid: deploymentUuid
+        workflow: workflow
+        beginTime: formattedBeginTime
+        endTime: formattedEndTime
         elapsedTime: elapsedTime
         success: endTime?
       }
