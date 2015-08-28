@@ -18,7 +18,6 @@ class Command
   run: =>
     @search @query(), (error, result) =>
       throw error if error?
-      console.log result
 
       deployments = @process @normalize result
       async.each deployments, @update, (error) =>
