@@ -19,7 +19,6 @@ class Command
       deployments = @process @normalize result
       async.each deployments, @update, (error) =>
         throw error if error?
-        console.log 'all done...?'
         process.exit 0
 
   update: (deployment, callback) =>
@@ -28,7 +27,10 @@ class Command
       host: @destinationElasticsearchUrl
       pathname: "/flow_start_history/event/#{deployment.deploymentUuid}"
 
-    request.put uri, json: deployment, callback
+    request.put uri, json: deployment, (error, response, body) =>
+      return callback error if error?
+      return callback new Error(JSON.stringify body) if response.statusCode >= 300
+      callback null
 
   search: (body, callback=->) =>
     @sourceElasticsearch.search({
@@ -52,8 +54,11 @@ class Command
     _.map deployments, (deployment) =>
       {beginTime, endTime} = deployment
 
+      elapsedTime = null
+      elapsedTime = endTime - beginTime if endTime?
+
       _.extend {}, deployment, {
-        elapsedTime: endTime - beginTime
+        elapsedTime: elapsedTime
         success: endTime?
       }
 
