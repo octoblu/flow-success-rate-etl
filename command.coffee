@@ -7,7 +7,7 @@ QUERY = require './query.json'
 
 class Command
   constructor: ->
-    sourceElasticsearchUrl       = process.env.PRIVATE_ELASTICSEARCH_URL ? 'localhost:9200'
+    sourceElasticsearchUrl       = process.env.SOURCE_ELASTICSEARCH_URL ? 'localhost:9200'
     @destinationElasticsearchUrl = process.env.DESTINATION_ELASTICSEARCH_URL ? 'localhost:9200'
 
     @sourceElasticsearch      = new ElasticSearch.Client host: sourceElasticsearchUrl
