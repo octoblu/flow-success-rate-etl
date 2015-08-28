@@ -38,7 +38,7 @@ class Command
     uri = url.format
       protocol: 'http'
       host: @destinationElasticsearchUrl
-      pathname: "/flow_success_rates/event/"
+      pathname: "/flow_success_rate/event/"
 
     request.post uri, json: deployment, (error, response, body) =>
       return callback error if error?
